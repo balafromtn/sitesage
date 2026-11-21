@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SiteSage — Question-Aware Website Search Engine</title>
+    <meta name="description" content="Don't search through websites. Ask them. Evidence-backed question answering with custom priority crawling and BM25 ranking.">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🔮</text></svg>">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ── Navigation / Header ──────────────────────────────────────── -->
+        <header class="app-header">
+            <div class="brand-group">
+                <div class="brand-logo-badge">🔮</div>
+                <div class="brand-text">
+                    <h1>SiteSage <span class="version-pill">v0.7</span></h1>
+                    <p>Don't search through websites. Ask them.</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary btn-sm" id="btn-toggle-history" title="View previous search sessions">
+                    <span>🕒 History</span>
+                    <span class="badge badge-meta" id="history-count-badge" hidden>0</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ── Main Search Form ─────────────────────────────────────────── -->
+        <main>
+            <section class="search-card">
+                <form id="search-form" autocomplete="off">
+                    <div class="form-group">
+                        <label for="url-input" class="form-label">Target Website</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon">🌐</span>
+                            <input 
+                                type="url" 
+                                id="url-input" 
+                                class="input-text" 
+                                placeholder="https://example.com" 
+                                required
+                                spellcheck="false"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="question-input" class="form-label">Your Question</label>
+                        <div class="input-wrapper">
+                            <textarea 
+                                id="question-input" 
+                                class="input-text textarea-question" 
+                                placeholder="What specific information do you want to find or synthesize?" 
+                                rows="2" 
+                                required 
+                                minlength="3"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Controls -->
+                    <div class="config-row">
+                        <div class="config-item">
+                            <span class="form-label" style="margin-bottom: 0;">Page Cap:</span>
+                            <div class="slider-container">
+                                <input 
+                                    type="range" 
+                                    id="max-pages-input" 
+                                    class="range-slider" 
+                                    min="1" 
+                                    max="30" 
+                                    value="15"
+                                >
+                                <span class="slider-value-badge" id="max-pages-value">15</span>
+                            </div>
+                        </div>
+
+                        <div class="config-item">
+                            <label class="switch-label">
+                                <input type="checkbox" id="polish-toggle" class="switch-input">
+                                <span class="switch-slider"></span>
+                                <span>AI Readability Polish</span>
+                                <span class="tooltip-icon" title="Strictly evidence-bounded prose improvement. Disabled by default.">ℹ️</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" id="search-btn">
+                            <span class="icon">🔍</span> Search Website
+                        </button>
+                    </div>
+
+                    <!-- Quick Example Presets -->
+                    <div class="presets-group">
+                        <span class="presets-label">Examples:</span>
+                        <button type="button" class="preset-pill" data-url="http://quotes.toscrape.com" data-question="What are Albert Einstein's quotes on life and mistakes?" data-max="8">
+                            Quotes — Einstein Quotes
+                        </button>
+                        <button type="button" class="preset-pill" data-url="https://httpbin.org" data-question="What endpoints support inspecting HTTP request headers and methods?" data-max="10">
+                            HTTPBin — Inspect Endpoints
+                        </button>
+                        <button type="button" class="preset-pill" data-url="https://books.toscrape.com" data-question="What travel and poetry books are available and what are their prices?" data-max="10">
+                            Books — Travel & Poetry
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- ── Live Crawl & Pipeline Dashboard ────────────────────────── -->
+            <section class="dashboard-card" id="dashboard-section" hidden>
+                <div class="dash-header">
+                    <div class="dash-stage-wrap">
+                        <span class="status-pill stage-init" id="dash-stage-pill">Initializing</span>
+                    </div>
+                    <button class="btn btn-danger btn-sm" id="btn-cancel-search" type="button">
+                        <span class="icon">⏹</span> Stop Search
+                    </button>
+                </div>
+
+                <div class="progress-container">
+                    <div class="progress-info-row">
+                        <span>Pipeline Progress</span>
+                        <span id="dash-progress-percent">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="dash-progress-fill"></div>
+                    </div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-val" id="count-crawled">0 / 15</div>
+                        <div class="metric-label">Pages Crawled</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-val" id="count-discovered">0</div>
+                        <div class="metric-label">Discovered</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-val" id="count-queued">0</div>
+                        <div class="metric-label">Queued</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-val" id="count-failed">0</div>
+                        <div class="metric-label">Failed</div>
+                    </div>
+                </div>
+
+                <div class="active-url-banner">
+                    <span class="icon">⚡</span>
+                    <span id="dash-current-url">Analyzing links...</span>
+                </div>
+
+                <div class="feed-container" id="dash-activity-feed" aria-live="polite">
+                    <!-- Streamed events appended here -->
+                </div>
+            </section>
+
+            <!-- ── Results Section ────────────────────────────────────────── -->
+            <section class="results-container" id="results-section" hidden>
+                <!-- Rendered dynamically by UI.renderResults -->
+            </section>
+
+            <!-- ── Empty / Intro State ────────────────────────────────────── -->
+            <section class="empty-state" id="empty-state-section">
+                <div class="empty-icon">🛡️</div>
+                <h2 class="empty-title">100% Deterministic Evidence Search</h2>
+                <p class="empty-desc">
+                    SiteSage crawls up to 30 pages of any website, constructs an inverted index, scores passages using pure Okapi BM25, and extracts sentence-level evidence with exact citations.
+                </p>
+
+                <div class="feature-steps">
+                    <div class="step-card">
+                        <div class="step-num">STEP 01</div>
+                        <div class="step-title">Priority Crawl</div>
+                        <div class="step-desc">Targeted priority queue crawling bounded strictly to origin.</div>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">STEP 02</div>
+                        <div class="step-title">Passage Index</div>
+                        <div class="step-desc">Noise-free semantic passage chunking and SQLite term indexing.</div>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">STEP 03</div>
+                        <div class="step-title">BM25 Ranking</div>
+                        <div class="step-desc">Lucene IDF with explainable title, heading, and position boosts.</div>
+                    </div>
+                    <div class="step-card">
+                        <div class="step-num">STEP 04</div>
+                        <div class="step-title">Claim Extraction</div>
+                        <div class="step-desc">Sentence-level fact verification with exact source URLs.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ── Session History Drawer ─────────────────────────────────── -->
+        <div class="drawer" id="history-drawer">
+            <div class="drawer-header">
+                <h3 class="drawer-title">Previous Searches</h3>
+                <button class="btn btn-secondary btn-sm" id="btn-close-history" aria-label="Close history">✕</button>
+            </div>
+            <div class="drawer-content" id="session-history-list">
+                <!-- Rendered dynamically by UI.renderSessionHistory -->
+            </div>
+        </div>
+        <div class="drawer-backdrop" id="drawer-backdrop"></div>
+
+        <!-- ── Toast Container ────────────────────────────────────────── -->
+        <div class="toast-container" id="toast-container" aria-live="assertive"></div>
+    </div>
+
+    <!-- ── JavaScript Modules ─────────────────────────────────────────── -->
+    <script src="/js/api.js"></script>
+    <script src="/js/stream.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
