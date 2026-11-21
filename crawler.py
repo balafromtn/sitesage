@@ -512,11 +512,16 @@ class WebCrawler:
         current_url: Optional[str] = None,
         message: Optional[str] = None,
     ) -> CrawlProgress:
+        # If crawl cap is reached or crawl completed, active queue remaining is 0
+        queued_count = len(self._queue)
+        if self._pages_crawled >= self.max_pages or status in (SessionStatus.DONE, SessionStatus.EXTRACTING, SessionStatus.POLISHING):
+            queued_count = 0
+
         return CrawlProgress(
             session_id=self.session_id,
             status=status,
             pages_discovered=self._pages_discovered,
-            pages_queued=len(self._queue),
+            pages_queued=queued_count,
             pages_crawled=self._pages_crawled,
             pages_failed=self._pages_failed,
             current_url=current_url,

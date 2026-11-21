@@ -41,17 +41,32 @@ def get_headless_driver():
 class TestBrowserInterfaceE2E:
     @classmethod
     def setup_class(cls):
-        cls.driver = get_headless_driver()
         cls.base_url = "http://127.0.0.1:8000"
+        cls.server_running = False
+        try:
+            import urllib.request
+            with urllib.request.urlopen(cls.base_url, timeout=0.5) as resp:
+                if resp.status == 200:
+                    cls.server_running = True
+        except Exception:
+            cls.server_running = False
+
+        if cls.server_running:
+            cls.driver = get_headless_driver()
+        else:
+            cls.driver = None
 
     @classmethod
     def teardown_class(cls):
-        if cls.driver:
-            cls.driver.quit()
+        if getattr(cls, "driver", None):
+            try:
+                cls.driver.quit()
+            except Exception:
+                pass
 
     def test_homepage_elements(self):
-        if not self.driver:
-            pytest.skip("No headless browser driver available")
+        if not self.driver or not getattr(self, "server_running", False):
+            pytest.skip("SiteSage server is not running on 127.0.0.1:8000")
 
         self.driver.get(self.base_url)
         time.sleep(1)
@@ -73,8 +88,8 @@ class TestBrowserInterfaceE2E:
         assert search_btn.is_displayed()
 
     def test_preset_interaction_and_slider(self):
-        if not self.driver:
-            pytest.skip("No headless browser driver available")
+        if not self.driver or not getattr(self, "server_running", False):
+            pytest.skip("SiteSage server is not running on 127.0.0.1:8000")
 
         self.driver.get(self.base_url)
         time.sleep(1)
@@ -92,8 +107,8 @@ class TestBrowserInterfaceE2E:
         assert len(q_val) >= 3
 
     def test_history_drawer_toggle(self):
-        if not self.driver:
-            pytest.skip("No headless browser driver available")
+        if not self.driver or not getattr(self, "server_running", False):
+            pytest.skip("SiteSage server is not running on 127.0.0.1:8000")
 
         self.driver.get(self.base_url)
         time.sleep(1)
@@ -112,8 +127,8 @@ class TestBrowserInterfaceE2E:
         assert "open" not in drawer.get_attribute("class")
 
     def test_mobile_viewport_responsiveness(self):
-        if not self.driver:
-            pytest.skip("No headless browser driver available")
+        if not self.driver or not getattr(self, "server_running", False):
+            pytest.skip("SiteSage server is not running on 127.0.0.1:8000")
 
         # Set mobile viewport
         self.driver.set_window_size(500, 700)

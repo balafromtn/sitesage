@@ -6,22 +6,32 @@
     <title>SiteSage — Question-Aware Website Search Engine</title>
     <meta name="description" content="Don't search through websites. Ask them. Evidence-backed question answering with custom priority crawling and BM25 ranking.">
     <link rel="stylesheet" href="/style.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>🔮</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%200%2024%2024%22 fill=%22none%22 stroke=%22%234f6df5%22 stroke-width=%222%22><circle cx=%2211%22 cy=%2211%22 r=%228%22/><line x1=%2221%22 y1=%2221%22 x2=%2216.65%22 y2=%2216.65%22/><circle cx=%2211%22 cy=%2211%22 r=%223%22 stroke-width=%221.5%22/></svg>">
 </head>
 <body>
     <div class="app-container">
         <!-- ── Navigation / Header ──────────────────────────────────────── -->
         <header class="app-header">
             <div class="brand-group">
-                <div class="brand-logo-badge">🔮</div>
+                <div class="brand-logo-badge" aria-hidden="true">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        <circle cx="11" cy="11" r="3" stroke-width="1.5"></circle>
+                    </svg>
+                </div>
                 <div class="brand-text">
-                    <h1>SiteSage <span class="version-pill">v0.7</span></h1>
-                    <p>Don't search through websites. Ask them.</p>
+                    <h1>SiteSage <span class="version-pill">v0.9</span></h1>
+                    <p>Evidence-backed website search engine.</p>
                 </div>
             </div>
             <div class="header-actions">
                 <button class="btn btn-secondary btn-sm" id="btn-toggle-history" title="View previous search sessions">
-                    <span>🕒 History</span>
+                    <svg class="btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>History</span>
                     <span class="badge badge-meta" id="history-count-badge" hidden>0</span>
                 </button>
             </div>
@@ -32,9 +42,13 @@
             <section class="search-card">
                 <form id="search-form" autocomplete="off">
                     <div class="form-group">
-                        <label for="url-input" class="form-label">Target Website</label>
+                        <label for="url-input" class="form-label">Website URL</label>
                         <div class="input-wrapper">
-                            <span class="input-icon">🌐</span>
+                            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                            </svg>
                             <input 
                                 type="url" 
                                 id="url-input" 
@@ -47,12 +61,12 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="question-input" class="form-label">Your Question</label>
+                        <label for="question-input" class="form-label">Search inquiry or question</label>
                         <div class="input-wrapper">
                             <textarea 
                                 id="question-input" 
                                 class="input-text textarea-question" 
-                                placeholder="What specific information do you want to find or synthesize?" 
+                                placeholder="What specific facts or data points do you need to find?" 
                                 rows="2" 
                                 required 
                                 minlength="3"
@@ -63,7 +77,7 @@
                     <!-- Configuration Controls -->
                     <div class="config-row">
                         <div class="config-item">
-                            <span class="form-label" style="margin-bottom: 0;">Page Cap:</span>
+                            <span class="config-label">Crawl limit:</span>
                             <div class="slider-container">
                                 <input 
                                     type="range" 
@@ -81,13 +95,23 @@
                             <label class="switch-label">
                                 <input type="checkbox" id="polish-toggle" class="switch-input">
                                 <span class="switch-slider"></span>
-                                <span>AI Readability Polish</span>
-                                <span class="tooltip-icon" title="Strictly evidence-bounded prose improvement. Disabled by default.">ℹ️</span>
+                                <span>Readability polish</span>
+                                <span class="tooltip-icon" title="Strictly evidence-bounded prose improvement without altering facts. Disabled by default.">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                    </svg>
+                                </span>
                             </label>
                         </div>
 
                         <button type="submit" class="btn btn-primary" id="search-btn">
-                            <span class="icon">🔍</span> Search Website
+                            <svg class="btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <span>Search Website</span>
                         </button>
                     </div>
 
@@ -95,13 +119,13 @@
                     <div class="presets-group">
                         <span class="presets-label">Examples:</span>
                         <button type="button" class="preset-pill" data-url="http://quotes.toscrape.com" data-question="What are Albert Einstein's quotes on life and mistakes?" data-max="8">
-                            Quotes — Einstein Quotes
+                            Quotes &mdash; Einstein on mistakes
                         </button>
                         <button type="button" class="preset-pill" data-url="https://httpbin.org" data-question="What endpoints support inspecting HTTP request headers and methods?" data-max="10">
-                            HTTPBin — Inspect Endpoints
+                            HTTPBin &mdash; Request inspection
                         </button>
                         <button type="button" class="preset-pill" data-url="https://books.toscrape.com" data-question="What travel and poetry books are available and what are their prices?" data-max="10">
-                            Books — Travel & Poetry
+                            Books &mdash; Travel &amp; poetry pricing
                         </button>
                     </div>
                 </form>
@@ -114,13 +138,16 @@
                         <span class="status-pill stage-init" id="dash-stage-pill">Initializing</span>
                     </div>
                     <button class="btn btn-danger btn-sm" id="btn-cancel-search" type="button">
-                        <span class="icon">⏹</span> Stop Search
+                        <svg class="btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+                        </svg>
+                        <span>Stop Search</span>
                     </button>
                 </div>
 
                 <div class="progress-container">
                     <div class="progress-info-row">
-                        <span>Pipeline Progress</span>
+                        <span>Pipeline progress</span>
                         <span id="dash-progress-percent">0%</span>
                     </div>
                     <div class="progress-track">
@@ -134,12 +161,13 @@
                         <div class="metric-label">Pages Crawled</div>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-val" id="count-discovered">0</div>
-                        <div class="metric-label">Discovered</div>
+                        <div class="metric-val" id="count-remaining">15</div>
+                        <div class="metric-label">Remaining Pages</div>
+                        <span id="count-queued" hidden>0</span>
                     </div>
                     <div class="metric-card">
-                        <div class="metric-val" id="count-queued">0</div>
-                        <div class="metric-label">Queued</div>
+                        <div class="metric-val" id="count-discovered">0</div>
+                        <div class="metric-label">Discovered</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-val" id="count-failed">0</div>
@@ -148,12 +176,19 @@
                 </div>
 
                 <div class="active-url-banner">
-                    <span class="icon">⚡</span>
+                    <span class="active-indicator-dot"></span>
                     <span id="dash-current-url">Analyzing links...</span>
                 </div>
 
-                <div class="feed-container" id="dash-activity-feed" aria-live="polite">
-                    <!-- Streamed events appended here -->
+                <!-- Compact Collapsible Activity Feed -->
+                <div class="feed-accordion-wrap">
+                    <button type="button" class="btn-toggle-feed" id="btn-toggle-feed" aria-expanded="false">
+                        <span class="feed-toggle-icon">▶</span>
+                        <span id="feed-toggle-label">Show live crawl activity log (0 events)</span>
+                    </button>
+                    <div class="feed-container" id="dash-activity-feed" aria-live="polite" hidden>
+                        <!-- Streamed events appended here -->
+                    </div>
                 </div>
             </section>
 
@@ -164,32 +199,38 @@
 
             <!-- ── Empty / Intro State ────────────────────────────────────── -->
             <section class="empty-state" id="empty-state-section">
-                <div class="empty-icon">🛡️</div>
-                <h2 class="empty-title">100% Deterministic Evidence Search</h2>
+                <div class="empty-badge">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        <polyline points="9 12 11 14 15 10"></polyline>
+                    </svg>
+                    <span>Deterministic Evidence Retrieval</span>
+                </div>
+                <h2 class="empty-title">Answers backed by verified website sources</h2>
                 <p class="empty-desc">
-                    SiteSage crawls up to 30 pages of any website, constructs an inverted index, scores passages using pure Okapi BM25, and extracts sentence-level evidence with exact citations.
+                    SiteSage crawls target origins on demand, indexes passage text in local SQLite storage, ranks matches with Okapi BM25, and returns sentence-level citations without hallucinations.
                 </p>
 
                 <div class="feature-steps">
                     <div class="step-card">
-                        <div class="step-num">STEP 01</div>
+                        <div class="step-num">01</div>
                         <div class="step-title">Priority Crawl</div>
-                        <div class="step-desc">Targeted priority queue crawling bounded strictly to origin.</div>
+                        <div class="step-desc">Origin-bounded crawl queue steered by query relevance keywords.</div>
                     </div>
                     <div class="step-card">
-                        <div class="step-num">STEP 02</div>
+                        <div class="step-num">02</div>
                         <div class="step-title">Passage Index</div>
-                        <div class="step-desc">Noise-free semantic passage chunking and SQLite term indexing.</div>
+                        <div class="step-desc">Structural HTML parsing, noise removal, and tokenized SQLite indexing.</div>
                     </div>
                     <div class="step-card">
-                        <div class="step-num">STEP 03</div>
+                        <div class="step-num">03</div>
                         <div class="step-title">BM25 Ranking</div>
-                        <div class="step-desc">Lucene IDF with explainable title, heading, and position boosts.</div>
+                        <div class="step-desc">Lucene IDF with explainable title, heading, and depth score boosts.</div>
                     </div>
                     <div class="step-card">
-                        <div class="step-num">STEP 04</div>
-                        <div class="step-title">Claim Extraction</div>
-                        <div class="step-desc">Sentence-level fact verification with exact source URLs.</div>
+                        <div class="step-num">04</div>
+                        <div class="step-title">Fact Verification</div>
+                        <div class="step-desc">Sentence-level claims linked to exact quotes and source URLs.</div>
                     </div>
                 </div>
             </section>
@@ -199,7 +240,12 @@
         <div class="drawer" id="history-drawer">
             <div class="drawer-header">
                 <h3 class="drawer-title">Previous Searches</h3>
-                <button class="btn btn-secondary btn-sm" id="btn-close-history" aria-label="Close history">✕</button>
+                <button class="btn btn-secondary btn-sm" id="btn-close-history" aria-label="Close history">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
             <div class="drawer-content" id="session-history-list">
                 <!-- Rendered dynamically by UI.renderSessionHistory -->

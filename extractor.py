@@ -197,6 +197,14 @@ def retrieve_aspect_evidence(
 
 SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+|\n+")
 
+BOILERPLATE_REGEX = re.compile(
+    r"(skip to (?:content|main|navigation)|all rights reserved|cookie(?:s)? policy|"
+    r"terms (?:of (?:use|service)|and conditions)|privacy policy|click here|"
+    r"subscribe to our|follow us on|page \d+ of \d+|add to (?:cart|bag)|view (?:cart|bag)|"
+    r"sign (?:in|up|out)|log (?:in|out)|table of contents|quick links|share this page)",
+    re.IGNORECASE,
+)
+
 COMMON_TIER_MODIFIERS = {
     "basic", "starter", "business", "pro", "professional", "enterprise",
     "free", "premium", "standard", "ultimate", "personal", "team", "individual",
@@ -221,10 +229,11 @@ def extract_claims_from_passage(
 
     Enforces focal entity filtering: sentences mentioning a competing tier/entity
     without mentioning the requested entity are rejected.
+    Filters boilerplate, noise, and short navigation fragments.
     Returns list of (claim_sentence, sentence_confidence) pairs.
     """
     text = passage.passage.text
-    sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if len(s.strip()) >= 15]
+    raw_sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(text) if len(s.strip()) >= 15]
 
     aspect_tokens = set(tokenize_text(aspect.aspect, remove_stopwords=True))
     aspect_kw_set = set(aspect.keywords)
@@ -236,15 +245,23 @@ def extract_claims_from_passage(
 
     extracted: list[tuple[str, float]] = []
 
-    for sentence in sentences:
+    for sentence in raw_sentences:
         # Don't extract question sentences or pure navigation noise
         if sentence.endswith("?") or sentence.lower().startswith("click here"):
+            continue
+
+        # Filter out obvious boilerplate patterns
+        if BOILERPLATE_REGEX.search(sentence):
             continue
 
         sent_tokens = set(tokenize_text(sentence, remove_stopwords=True))
         overlap = sent_tokens & aspect_kw_set
 
         if not overlap:
+            continue
+
+        # Require minimum substantive words (at least 3 tokens)
+        if len(sent_tokens) < 3:
             continue
 
         # Focal entity discrimination:
@@ -255,7 +272,6 @@ def extract_claims_from_passage(
             sent_tiers = sent_tokens & COMMON_TIER_MODIFIERS
             competing_tiers = sent_tiers - aspect_tiers
             if competing_tiers and not (sent_tiers & aspect_tiers):
-                # Sentence is about a competing tier, not the requested tier
                 continue
 
         # If the aspect had specific non-generic focal keywords (e.g. "business", "limits", "sso"),
@@ -277,14 +293,14 @@ def extract_claims_from_passage(
             if not has_cost_indicator:
                 continue
 
-        # Keyword coverage
+        # Calibrated evidence confidence scoring
         coverage = len(overlap) / max(1, len(aspect_kw_set))
-        # Normalized BM25 contribution
-        bm25_norm = min(1.0, passage.score_breakdown.total_score / 3.0)
+        bm25_norm = min(1.0, passage.score_breakdown.total_score / 4.0)
 
-        # Transparent heuristic confidence
-        confidence = round(0.4 * bm25_norm + 0.6 * coverage, 3)
-        confidence = min(1.0, max(0.1, confidence))
+        # Single source confidence is calibrated between 0.35 and 0.80
+        # (It should never claim 100% certainty from a single keyword match)
+        confidence = round(0.30 + (0.35 * coverage) + (0.15 * bm25_norm), 2)
+        confidence = min(0.80, max(0.25, confidence))
 
         extracted.append((sentence, confidence))
 
@@ -295,52 +311,70 @@ def extract_aspect_claims(
     aspect: QuestionAspect,
     passages: list[ScoredPassage],
 ) -> list[ClaimEvidence]:
-    """Extract traceable claims supporting a specific question aspect."""
+    """Extract traceable claims supporting a specific question aspect with semantic deduplication."""
     claims: list[ClaimEvidence] = []
-    seen_claims: set[str] = set()
 
     for p in passages:
         candidate_sentences = extract_claims_from_passage(p, aspect)
         for sentence, conf in candidate_sentences:
             norm_key = " ".join(tokenize_text(sentence, remove_stopwords=True))
-            if norm_key in seen_claims:
-                # Corroborating evidence: find existing claim and attach this passage as second source
-                for c in claims:
-                    if " ".join(tokenize_text(c.claim, remove_stopwords=True)) == norm_key:
-                        if not any(sp.passage.id == p.passage.id for sp in c.supporting_passages):
-                            c.supporting_passages.append(p)
-                            c.sources.append(
-                                SourceReference(
-                                    page_url=p.passage.page_url,
-                                    page_title=p.passage.page_title,
-                                    passage_id=p.passage.id,
-                                    section_heading=p.passage.section_heading,
-                                    exact_quote=sentence,
-                                )
-                            )
-                            # Boost confidence when multiple independent pages corroborate
-                            c.confidence = min(1.0, round(c.confidence + 0.15, 3))
+            if not norm_key:
                 continue
 
-            seen_claims.add(norm_key)
+            # Check for near-identical duplicate or substring overlap across existing claims
+            is_dup = False
+            sentence_nums = set(re.findall(r"\$?\b\d+(?:\.\d+)?%?", sentence))
+            for c in claims:
+                existing_norm = " ".join(tokenize_text(c.claim, remove_stopwords=True))
+                sim = calculate_jaccard_similarity(sentence, c.claim)
 
-            source_ref = SourceReference(
-                page_url=p.passage.page_url,
-                page_title=p.passage.page_title,
-                passage_id=p.passage.id,
-                section_heading=p.passage.section_heading,
-                exact_quote=sentence,
-            )
+                # If both statements mention numbers or prices and the numbers differ,
+                # they are distinct or contradictory facts, not duplicates.
+                claim_nums = set(re.findall(r"\$?\b\d+(?:\.\d+)?%?", c.claim))
+                if sentence_nums and claim_nums and sentence_nums != claim_nums:
+                    continue
 
-            claims.append(
-                ClaimEvidence(
-                    claim=sentence,
-                    supporting_passages=[p],
-                    sources=[source_ref],
-                    confidence=conf,
-                    aspect=aspect.aspect,
+                # Substring containment or high Jaccard similarity (> 0.60)
+                is_contained = (len(sentence) >= 25 and sentence in c.claim) or (len(c.claim) >= 25 and c.claim in sentence)
+                if norm_key == existing_norm or sim >= 0.60 or is_contained:
+                    is_dup = True
+                    # Attach this passage as corroborating source if not already present
+                    if not any(sp.passage.id == p.passage.id for sp in c.supporting_passages):
+                        c.supporting_passages.append(p)
+                        c.sources.append(
+                            SourceReference(
+                                page_url=p.passage.page_url,
+                                page_title=p.passage.page_title,
+                                passage_id=p.passage.id,
+                                section_heading=p.passage.section_heading,
+                                exact_quote=sentence,
+                            )
+                        )
+                        # Boost confidence when multiple independent pages corroborate (capped at 0.95)
+                        c.confidence = min(0.95, round(c.confidence + 0.10, 2))
+
+                    # Prefer the longer, more informative sentence if they are near-identical
+                    if len(sentence) > len(c.claim) and sim >= 0.70:
+                        c.claim = sentence
+                    break
+
+            if not is_dup:
+                source_ref = SourceReference(
+                    page_url=p.passage.page_url,
+                    page_title=p.passage.page_title,
+                    passage_id=p.passage.id,
+                    section_heading=p.passage.section_heading,
+                    exact_quote=sentence,
                 )
-            )
+                claims.append(
+                    ClaimEvidence(
+                        claim=sentence,
+                        supporting_passages=[p],
+                        sources=[source_ref],
+                        confidence=conf,
+                        aspect=aspect.aspect,
+                    )
+                )
 
     return claims
 

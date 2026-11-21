@@ -345,6 +345,7 @@ async def execute_pipeline(
     if not pages:
         return _handle_error(session, "No pages could be crawled from the provided URL.", db_path)
 
+    session.pages_queued = 0
     broadcast_event(
         session,
         event_type="crawling_completed",
@@ -438,11 +439,15 @@ async def execute_pipeline(
         )
 
         try:
-            polisher = AnswerPolisher()
-            polished = await polisher.polish_result(det_result)
+            polisher = AnswerPolisher(enable_ai=True)
+            polished = await polisher.polish_result(det_result, requested=True)
             final_result = polished
 
-            status_msg = "AI polishing completed successfully." if final_result.ai_polished else "Polishing skipped or reverted to deterministic fallback."
+            status_msg = (
+                f"AI polishing: {final_result.polish_status} ({final_result.polish_reason})"
+                if final_result.polish_reason
+                else ("AI polishing completed successfully." if final_result.ai_polished else "Polishing skipped or reverted to deterministic fallback.")
+            )
             broadcast_event(
                 session,
                 event_type="polishing_completed",
@@ -453,6 +458,13 @@ async def execute_pipeline(
             )
         except Exception as e:
             logger.warning("Optional AI polisher failed: %s; keeping deterministic.", e)
+            final_result = det_result
+            final_result.polish_status = "unavailable"
+            final_result.polish_reason = "AI polisher encountered an unhandled error."
+    else:
+        final_result = det_result
+        final_result.polish_status = "disabled"
+        final_result.polish_reason = "Readability polish was not requested."
 
     # Stage 6: Completion & Persistence
     if session.cancelled:

@@ -210,8 +210,8 @@ async def get_results(
     sess = get_pipeline_session(session_id)
     if sess and sess.result:
         if polish and not sess.result.ai_polished:
-            polisher = AnswerPolisher()
-            return await polisher.polish_result(sess.result)
+            polisher = AnswerPolisher(enable_ai=True)
+            return await polisher.polish_result(sess.result, requested=True)
         return sess.result
 
     if session_id not in _sessions and not sess:

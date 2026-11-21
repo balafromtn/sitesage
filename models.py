@@ -176,3 +176,5 @@ class SearchResult(BaseModel):
     pages_crawled: int = 0
     pages_failed: int = 0
     ai_polished: bool = False
+    polish_status: Optional[str] = Field(default=None, description="Outcome: improved, original_retained, or unavailable")
+    polish_reason: Optional[str] = Field(default=None, description="Human-readable explanation of polishing outcome")

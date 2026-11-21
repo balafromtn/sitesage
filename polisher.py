@@ -67,18 +67,28 @@ class GeminiProvider(AIProvider):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gemini-1.5-flash",
-        timeout: float = 10.0,
+        model: Optional[str] = None,
+        timeout: float = 20.0,
     ) -> None:
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
-        self.model = model or config.AI_POLISH_MODEL or "gemini-1.5-flash"
+        self.api_key = (
+            api_key
+            or os.environ.get("GEMINI_API_KEY")
+            or getattr(config, "GEMINI_API_KEY", "")
+        ).strip()
+        self.model = (
+            model
+            or getattr(config, "AI_POLISH_MODEL", None)
+            or os.environ.get("AI_POLISH_MODEL")
+            or "gemini-3.5-flash-lite"
+        )
         self.timeout = timeout
 
     async def polish(self, prompt: str) -> str:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not configured.")
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        model_name = self.model.removeprefix("models/")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": 1000},
@@ -86,6 +96,11 @@ class GeminiProvider(AIProvider):
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             resp = await client.post(url, json=payload)
+            # Automatic fallback if configured model is experiencing spikes (503) or not found (404)
+            if resp.status_code in (404, 503) and model_name != "gemini-3.5-flash-lite":
+                fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={self.api_key}"
+                resp = await client.post(fallback_url, json=payload)
+
             if resp.status_code != 200:
                 raise RuntimeError(f"Gemini API returned status {resp.status_code}: {resp.text}")
             data = resp.json()
@@ -146,16 +161,19 @@ URL_PATTERN = re.compile(r"https?://[^\s)\]\"'>]+", re.IGNORECASE)
 
 def extract_numbers_and_currencies(text: str) -> set[str]:
     """Extract all numbers, currency figures, and quantities from text."""
-    return {m.lower().strip() for m in NUMERIC_PATTERN.findall(text)}
+    # Strip list numbering at line start (e.g., '1. ', '2. ', '(1) ') so they aren't treated as factual data
+    cleaned = re.sub(r"(?m)^\s*(?:\d+[\.\)]|\(\d+\))\s+", "", text)
+    return {m.lower().strip() for m in NUMERIC_PATTERN.findall(cleaned)}
 
 
 def extract_urls(text: str) -> set[str]:
     """Extract all HTTP/HTTPS URLs from text."""
     urls = set()
     for m in URL_PATTERN.findall(text):
-        # Strip trailing punctuation that might get attached
-        cleaned = m.rstrip(".,;)>]")
-        urls.add(cleaned)
+        # Strip trailing punctuation and trailing slash for robust comparison
+        cleaned = m.rstrip(".,;)>]").rstrip("/")
+        if cleaned:
+            urls.add(cleaned)
     return urls
 
 
@@ -171,9 +189,12 @@ def validate_polished_output(
         return False, "Polished output is empty"
 
     # 1. Number and Price Integrity
-    # Build set of all numbers in the verified claims
+    # Build set of all numbers in the verified claims, original answer, and confidence percentages
     claims_text = " ".join(c.claim for c in original_result.claims)
-    orig_numbers = extract_numbers_and_currencies(claims_text)
+    conf_numbers = " ".join(f"{int(c.confidence * 100)}%" for c in original_result.claims)
+    orig_numbers = extract_numbers_and_currencies(
+        claims_text + " " + (original_result.answer or "") + " " + conf_numbers
+    )
     polished_numbers = extract_numbers_and_currencies(polished_text)
 
     # Check for hallucinated or modified numbers
@@ -185,7 +206,7 @@ def validate_polished_output(
         )
 
     # 2. Source Citation Integrity
-    orig_urls = {s.page_url.rstrip(".,;)>]") for c in original_result.claims for s in c.sources}
+    orig_urls = {s.page_url.rstrip(".,;)>]").rstrip("/") for c in original_result.claims for s in c.sources if s.page_url}
     polished_urls = extract_urls(polished_text)
 
     # No new URLs allowed
@@ -225,26 +246,66 @@ def validate_polished_output(
 class AnswerPolisher:
     """Orchestrates optional AI polishing with strict evidence validation and fallback."""
 
-    def __init__(self, provider: Optional[AIProvider] = None) -> None:
-        self.provider = provider or (GeminiProvider() if config.AI_POLISH_ENABLED else None)
+    def __init__(
+        self,
+        provider: Optional[AIProvider] = None,
+        enable_ai: bool = False,
+    ) -> None:
+        if provider:
+            self.provider = provider
+        elif enable_ai or config.AI_POLISH_ENABLED:
+            api_key = (
+                os.environ.get("GEMINI_API_KEY")
+                or getattr(config, "GEMINI_API_KEY", "")
+            ).strip()
+            if not api_key:
+                from dotenv import load_dotenv
+                load_dotenv(config.BASE_DIR / ".env", override=True)
+                api_key = (os.environ.get("GEMINI_API_KEY") or "").strip()
+
+            if api_key:
+                self.provider = GeminiProvider(api_key=api_key)
+            else:
+                self.provider = None
+        else:
+            self.provider = None
 
     async def polish_result(
         self,
         result: SearchResult,
         custom_provider: Optional[AIProvider] = None,
+        requested: bool = True,
     ) -> SearchResult:
         """Polish a deterministic SearchResult if a provider is configured and available.
 
-        Falls back cleanly to the deterministic result on any error or validation failure.
+        Falls back cleanly to the deterministic result on any error or validation failure,
+        populating polish_status and polish_reason.
         """
         # If no verified claims or empty answer, nothing to polish
         if not result.claims or not result.answer:
+            result.polish_status = "disabled"
+            result.polish_reason = "No claims to polish."
             return result
 
         provider = custom_provider or self.provider
 
-        # If polishing is disabled or no provider configured, return deterministic result
+        # If polishing was not requested
+        if not requested:
+            result.polish_status = "disabled"
+            result.polish_reason = "Readability polish was not requested."
+            return result
+
+        # If polishing was requested but no provider is available
         if not provider:
+            api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+            if not api_key:
+                result.ai_polished = False
+                result.polish_status = "unavailable"
+                result.polish_reason = "AI polishing requires GEMINI_API_KEY to be configured in .env."
+            else:
+                result.ai_polished = False
+                result.polish_status = "unavailable"
+                result.polish_reason = "AI polisher provider could not be initialized."
             return result
 
         try:
@@ -267,11 +328,20 @@ class AnswerPolisher:
                     pages_crawled=result.pages_crawled,
                     pages_failed=result.pages_failed,
                     ai_polished=True,
+                    polish_status="improved",
+                    polish_reason="Sentence transitions and readability improved while strictly preserving all facts, numbers, and citations.",
                 )
             else:
                 logger.warning("AI polish rejected by safety validator: %s. Reverting to deterministic.", reason)
+                result.ai_polished = False
+                result.polish_status = "original_retained"
+                result.polish_reason = f"Safety boundary guard preserved original evidence ({reason})."
                 return result
 
         except Exception as e:
             logger.warning("AI provider failed or timed out: %s. Reverting to deterministic.", e)
+            result.ai_polished = False
+            result.polish_status = "unavailable"
+            clean_err = str(e).split("key=")[0].split("?")[0].strip()
+            result.polish_reason = f"AI service error ({clean_err}); retained verified deterministic evidence."
             return result

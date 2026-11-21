@@ -51,6 +51,7 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+.agents/
 
 # OS files
 .DS_Store

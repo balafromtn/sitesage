@@ -6,10 +6,15 @@ than hard-coding values, making the system easy to test and adjust.
 """
 
 import os
+import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # ── Paths ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
+# Load environment variables from .env file if present
+load_dotenv(BASE_DIR / ".env")
+
 DB_PATH = Path(os.getenv("SITESAGE_DB_PATH", str(BASE_DIR / "sitesage.db")))
 STATIC_DIR = BASE_DIR / "static"
 
@@ -63,8 +68,11 @@ MIN_EVIDENCE_SCORE: float = 0.1     # ignore passages below this score
 MAX_ASPECTS: int = 5                # max question sub-aspects
 
 # ── AI polishing ─────────────────────────────────────────────────────
-AI_POLISH_ENABLED: bool = os.getenv("AI_POLISH_ENABLED", "false").lower() in ("true", "1", "yes")
-AI_POLISH_MODEL: str = os.getenv("AI_POLISH_MODEL", "gemini-1.5-flash")
+AI_POLISH_ENABLED: bool = (
+    False if ("pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"))
+    else os.getenv("AI_POLISH_ENABLED", "false").lower() in ("true", "1", "yes")
+)
+AI_POLISH_MODEL: str = os.getenv("AI_POLISH_MODEL", "gemini-3.5-flash-lite")
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
 # ── Server ───────────────────────────────────────────────────────────

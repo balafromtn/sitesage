@@ -46,6 +46,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // ── Feed Accordion Toggle ────────────────────────────────────────
+    const toggleFeedBtn = document.getElementById('btn-toggle-feed');
+    const activityFeed = document.getElementById('dash-activity-feed');
+    if (toggleFeedBtn && activityFeed) {
+        toggleFeedBtn.addEventListener('click', () => {
+            const isHidden = activityFeed.hidden;
+            activityFeed.hidden = !isHidden;
+            toggleFeedBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+            toggleFeedBtn.classList.toggle('active', isHidden);
+            const icon = toggleFeedBtn.querySelector('.feed-toggle-icon');
+            if (icon) icon.textContent = isHidden ? '▼' : '▶';
+        });
+    }
+
     // ── Max Pages Slider Binding ──────────────────────────────────────
     if (maxPagesInput && maxPagesValue) {
         maxPagesInput.addEventListener('input', (e) => {
