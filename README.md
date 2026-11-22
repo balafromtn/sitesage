@@ -146,7 +146,6 @@ flowchart TD
     class Claims,Conflicts,Det extract
     class Gemini,Validator polish
 ```
-Dashed lines mark optional or fallback paths.
 ---
 
 ## Key Features
