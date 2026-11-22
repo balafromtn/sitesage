@@ -694,7 +694,7 @@ In accordance with hackathon submission transparency guidelines, here is the dis
 - **Tagline**: Don't search through websites. Ask them.
 - **Repository URL**: `https://github.com/balafromtn/sitesage`
 - **Live Deployment URL**: *[SiteSage](https://sitesage-884j.onrender.com/)*
-- **Demo Video Link**: *(Insert demo recording URL here)*
+- **Demo Video Link**: *[Demo Video](https://drive.google.com/file/d/1Qs19YbOcgTyDCTvYiKVJ6-K0tWSUN2MR/view?usp=drive_link)*
 - **Track / Category**: Web Search & Information Retrieval / Hackathon
 - **Team Members**:
   - `balafromtn` (Lead Developer)
