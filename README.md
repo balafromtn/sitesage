@@ -693,9 +693,9 @@ In accordance with hackathon submission transparency guidelines, here is the dis
 - **Project Name**: SiteSage
 - **Tagline**: Don't search through websites. Ask them.
 - **Repository URL**: `https://github.com/balafromtn/sitesage`
-- **Live Deployment URL**: *(Insert Render / cloud deployment URL here)*
+- **Live Deployment URL**: *[SiteSage](https://sitesage-884j.onrender.com/)*
 - **Demo Video Link**: *(Insert demo recording URL here)*
-- **Track / Category**: Web Search & Information Retrieval / AI Hackathon
+- **Track / Category**: Web Search & Information Retrieval / Hackathon
 - **Team Members**:
   - `balafromtn` (Lead Developer)
 
