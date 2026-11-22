@@ -430,20 +430,44 @@ def detect_conflicts(claims: list[ClaimEvidence]) -> list[ConflictReport]:
                     )
                 )
 
-            # Numeric values conflict (e.g. differing dollar amounts or counts for same subject)
+            # Numeric values conflict (e.g. differing dollar amounts, rates, pricing, counts)
             nums1 = set(re.findall(r"\$?\b\d+(?:\.\d+)?%?", c1.claim))
             nums2 = set(re.findall(r"\$?\b\d+(?:\.\d+)?%?", c2.claim))
-            if nums1 and nums2 and nums1 != nums2 and len(common_keywords) >= 3:
-                c1.conflict_detected = True
-                c2.conflict_detected = True
-                conflicts.append(
-                    ConflictReport(
-                        aspect=c1.aspect or "General",
-                        conflicting_statements=[c1.claim, c2.claim],
-                        sources=list(urls1 | urls2),
-                        explanation=f"Conflicting numeric figures found: {nums1} vs {nums2}",
+
+            def is_substantive_num(n: str) -> bool:
+                raw_n = n.replace("$", "").replace("%", "")
+                if raw_n in {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"}:
+                    return False
+                if raw_n in {"2020", "2021", "2022", "2023", "2024", "2025", "2026", "2027", "2028", "2029", "2030"}:
+                    return False
+                return True
+
+            subst1 = {n for n in nums1 if is_substantive_num(n)}
+            subst2 = {n for n in nums2 if is_substantive_num(n)}
+
+            if subst1 and subst2 and subst1 != subst2 and len(common_keywords) >= 3:
+                num_context_words = {
+                    "price", "prices", "cost", "costs", "fee", "fees", "rate", "rates",
+                    "month", "monthly", "year", "annual", "tier", "plan", "limit", "storage",
+                    "gb", "mb", "users", "seats", "license", "licenses", "discount", "support",
+                    "day", "days", "week", "weeks", "refund", "guarantee", "trial", "period",
+                    "window", "duration", "hours", "time", "version", "build",
+                }
+                has_num_context = bool((t1 | t2) & num_context_words) or any("$" in n or "%" in n for n in (subst1 | subst2))
+
+                if has_num_context:
+                    c1.conflict_detected = True
+                    c2.conflict_detected = True
+                    str_nums1 = ", ".join(sorted(subst1))
+                    str_nums2 = ", ".join(sorted(subst2))
+                    conflicts.append(
+                        ConflictReport(
+                            aspect=c1.aspect or "General",
+                            conflicting_statements=[c1.claim, c2.claim],
+                            sources=list(urls1 | urls2),
+                            explanation=f"Conflicting numeric figures found: {str_nums1} vs {str_nums2}",
+                        )
                     )
-                )
 
     return conflicts
 
@@ -479,27 +503,23 @@ def synthesize_deterministic_answer(
         if not asp_claims:
             continue
 
-        section_lines = [f"### {asp_name}"]
+        section_lines = [f"### {asp_name.title() if len(asp_name) <= 30 else asp_name}"]
         for c in asp_claims:
-            # Inline clickable source link
+            # Inline clickable source link using standard [Source: <url>] format
             source_urls = list({s.page_url for s in c.sources})
             sources_formatted = ", ".join(source_urls)
-            conf_percent = int(c.confidence * 100)
+            source_tag = f" [Source: {sources_formatted}]" if sources_formatted else ""
 
-            conflict_note = f" ⚠️ [Conflict Detected]" if c.conflict_detected else ""
-            section_lines.append(
-                f"- {c.claim} (Confidence: {conf_percent}%){conflict_note}\n  Source: {sources_formatted}"
-            )
+            conflict_note = " *(Conflicting evidence detected)*" if c.conflict_detected else ""
+            section_lines.append(f"- {c.claim}{conflict_note}{source_tag}")
         sections.append("\n".join(section_lines))
 
-    # Add conflicts section if any
+    # Add conflicts section if any (concise summary; full comparative quotes displayed in UI alert)
     if conflicts:
         conflict_lines = ["### Discrepancies and Source Conflicts"]
         for cr in conflicts:
             conflict_lines.append(f"**Aspect:** {cr.aspect}")
-            conflict_lines.append(f"- Explanation: {cr.explanation}")
-            for stmt in cr.conflicting_statements:
-                conflict_lines.append(f"  • \"{stmt}\"")
+            conflict_lines.append(f"- {cr.explanation}")
         sections.append("\n".join(conflict_lines))
 
     # Add missing aspects section if any

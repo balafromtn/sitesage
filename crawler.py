@@ -30,7 +30,7 @@ from urllib.parse import (
 )
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 import config
 import database
@@ -345,8 +345,9 @@ def parse_html(html: str, base_url: str) -> CrawledPage:
     # Walk the body for text and headings
     body = soup.find("body") or soup
     for element in body.descendants:
-        if element.name and element.name in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            heading_text = element.get_text(strip=True)
+        # Check for heading elements
+        if getattr(element, "name", None) in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            heading_text = re.sub(r"\s+", " ", element.get_text(" ", strip=True)).strip()
             if heading_text:
                 level = int(element.name[1])
                 headings.append(HeadingInfo(
@@ -354,17 +355,16 @@ def parse_html(html: str, base_url: str) -> CrawledPage:
                     text=heading_text,
                     position=char_offset,
                 ))
-        if hasattr(element, "string") and element.string and element.parent.name not in (
-            "script", "style", "noscript",
-        ):
-            text = element.string.strip()
+        # Extract text strictly from leaf text nodes (NavigableString), never duplicate from parent tags
+        elif isinstance(element, NavigableString):
+            if element.parent and element.parent.name in ("script", "style", "noscript", "svg", "iframe"):
+                continue
+            text = re.sub(r"\s+", " ", element.strip()).strip()
             if text:
                 text_parts.append(text)
-                char_offset += len(text) + 1  # +1 for space
+                char_offset += len(text) + 1  # +1 for space separator
 
-    cleaned_text = " ".join(text_parts)
-    # Collapse whitespace
-    cleaned_text = re.sub(r"\s+", " ", cleaned_text).strip()
+    cleaned_text = " ".join(text_parts).strip()
 
     # Extract links with anchor text
     links: list[str] = []

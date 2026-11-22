@@ -239,8 +239,10 @@ async def get_results(
                 extractor = EvidenceExtractor()
                 det_result = extractor.process_question(session_id, q)
                 if polish:
-                    polisher = AnswerPolisher()
-                    return await polisher.polish_result(det_result)
+                    polisher = AnswerPolisher(enable_ai=True)
+                    return await polisher.polish_result(det_result, requested=True)
+                det_result.polish_status = "disabled"
+                det_result.polish_reason = "Readability polish was not requested."
                 return det_result
     except Exception as e:
         logger.debug("Failed loading result from DB: %s", e)
@@ -250,6 +252,8 @@ async def get_results(
         pages_crawled=0,
         pages_failed=0,
         ai_polished=False,
+        polish_status="disabled" if not polish else "unavailable",
+        polish_reason="Readability polish was not requested." if not polish else "AI polisher unavailable.",
     )
 
 

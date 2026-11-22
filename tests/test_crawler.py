@@ -457,7 +457,7 @@ class TestCancellation:
                 html_resp.status_code = 200
                 html_resp.is_redirect = False
                 html_resp.headers = {"content-type": "text/html"}
-                html_resp.text = "<html><body><p>Content here for testing.</p><a href='/page2'>link</a></body></html>"
+                html_resp.text = "<html><body><p>Content here for testing. This is a substantive paragraph that satisfies the minimum page text length requirement for crawler indexing.</p><a href='/page2'>link</a></body></html>"
 
                 call_count = 0
                 async def mock_get(url, **kwargs):

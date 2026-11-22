@@ -427,7 +427,7 @@ async def execute_pipeline(
     if session.cancelled:
         return _handle_cancellation(session, db_path)
 
-    should_polish = getattr(req, "polish", False) or config.AI_POLISH_ENABLED
+    should_polish = bool(getattr(req, "polish", False))
     if should_polish:
         broadcast_event(
             session,

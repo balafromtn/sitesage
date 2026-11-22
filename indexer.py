@@ -339,10 +339,49 @@ def extract_passages_from_crawled_page(page: CrawledPage) -> list[Passage]:
             position += 1
         return passages
 
+    # Handle any intro text occurring before the first heading
+    if headings_sorted:
+        first_h = headings_sorted[0]
+        first_start = first_h.position
+        match_idx = page.text.find(first_h.text, max(0, first_start - 25))
+        if match_idx != -1 and abs(match_idx - first_start) <= 30:
+            first_start = match_idx
+        if first_start >= config.MIN_PASSAGE_LENGTH:
+            intro_text = page.text[:first_start].strip()
+            if len(intro_text) >= config.MIN_PASSAGE_LENGTH:
+                chunks = split_text_into_passages(intro_text)
+                for chunk in chunks:
+                    passages.append(
+                        Passage(
+                            id=0,
+                            page_url=page.url,
+                            page_title=page.title,
+                            text=chunk,
+                            position=position,
+                            section_heading=None,
+                            heading_level=None,
+                            token_count=len(tokenize_text(chunk, remove_stopwords=False)),
+                        )
+                    )
+                    position += 1
+
     # Slice text by heading positions
     for i, h in enumerate(headings_sorted):
         start_pos = h.position
         end_pos = headings_sorted[i + 1].position if (i + 1 < len(headings_sorted)) else len(page.text)
+
+        # Re-align start_pos to the actual heading occurrence to prevent mid-word slicing
+        match_idx = page.text.find(h.text, max(0, start_pos - 25))
+        if match_idx != -1 and abs(match_idx - start_pos) <= 30:
+            start_pos = match_idx
+
+        # If next heading position needs alignment
+        if i + 1 < len(headings_sorted):
+            next_h = headings_sorted[i + 1]
+            next_match = page.text.find(next_h.text, max(0, end_pos - 25))
+            if next_match != -1 and abs(next_match - end_pos) <= 30:
+                end_pos = next_match
+
         section_text = page.text[start_pos:end_pos].strip()
 
         # Remove the heading text itself if at the beginning of the slice

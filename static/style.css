@@ -828,17 +828,30 @@ body {
 }
 
 .markdown-content h3 {
-    font-size: 15px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
     color: var(--accent-cyan);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 18px 0 10px 0;
+    padding: 3px 10px;
+    background: rgba(34, 211, 238, 0.08);
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    border-radius: var(--radius-sm);
 }
 
 .markdown-content ul {
     margin-left: 20px;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
+    list-style-type: disc;
 }
 
 .markdown-content li {
-    margin-bottom: 5px;
+    margin-bottom: 8px;
+    line-height: 1.62;
+    color: var(--text-secondary);
 }
 
 .markdown-content code {
@@ -1213,11 +1226,27 @@ body {
     white-space: nowrap;
 }
 
+.explain-table th:nth-child(n+3),
+.explain-table td:nth-child(n+3) {
+    text-align: right;
+}
+
+.explain-table th:first-child,
+.explain-table td:first-child {
+    text-align: center;
+    width: 48px;
+}
+
 .explain-table td {
     padding: 9px 10px;
     border-bottom: 1px solid var(--border-subtle);
     color: var(--text-secondary);
     font-family: var(--font-mono);
+}
+
+.explain-table td:last-child {
+    font-weight: 600;
+    color: var(--accent-cyan);
 }
 
 .explain-table tr:hover td {
@@ -1614,22 +1643,21 @@ body {
 
 /* Standalone source line (e.g. deterministic "Source: URL") */
 .answer-source-row {
-    margin-top: 4px;
-    margin-bottom: 8px;
-    padding-left: 12px;
+    margin-top: 3px;
+    margin-bottom: 6px;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-muted);
 }
 
 .answer-source-row-label {
     font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: normal;
     color: var(--text-muted);
 }
 

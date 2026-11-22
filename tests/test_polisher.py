@@ -323,3 +323,32 @@ class TestPolisherAPIIntegration:
         resp = client.get(f"/api/results/{sid}?polish=true")
         assert resp.status_code == 200
         assert resp.json()["ai_polished"] is False
+
+    @pytest.mark.asyncio
+    async def test_pipeline_respects_polish_false_toggle(self, monkeypatch, tmp_path):
+        # Even if config.AI_POLISH_ENABLED is True, req.polish=False must stay deterministic
+        monkeypatch.setattr(config, "AI_POLISH_ENABLED", True)
+        from unittest.mock import AsyncMock, patch
+        from pipeline import execute_pipeline, create_pipeline_session
+        from models import CrawlRequest, CrawledPage, HeadingInfo
+
+        test_db = tmp_path / "test_toggle_off.db"
+        database.init_db(test_db)
+
+        req = CrawlRequest(url="https://example.com", question="What is the price?", polish=False)
+        sess = create_pipeline_session(req, "test_sess_toggle_off", db_path=test_db)
+
+        page = CrawledPage(
+            url="https://example.com/pricing",
+            title="Pricing Page",
+            text="The price is $20 per month for unlimited access.",
+            headings=[HeadingInfo(level=1, text="Pricing", position=0)],
+        )
+
+        with patch("pipeline.WebCrawler.crawl", new_callable=AsyncMock) as mock_crawl:
+            mock_crawl.return_value = [page]
+            res = await execute_pipeline(sess, db_path=test_db)
+
+        assert res.ai_polished is False
+        assert res.polish_status == "disabled"
+        assert "not requested" in res.polish_reason.lower()
