@@ -5,7 +5,16 @@ Run with:  python main.py
 Or:        uvicorn main:app --reload
 """
 
+import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
+
+# Ensure backend and root directories are in sys.path
+_BACKEND_DIR = Path(__file__).resolve().parent
+_ROOT_DIR = _BACKEND_DIR.parent
+for _p in (str(_BACKEND_DIR), str(_ROOT_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -49,4 +58,4 @@ app.mount("/", StaticFiles(directory=str(config.STATIC_DIR), html=True), name="s
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host=config.HOST, port=config.PORT, reload=True)
+    uvicorn.run("backend.main:app", host=config.HOST, port=config.PORT, reload=True)

@@ -35,7 +35,7 @@
       "aspects_count": 2,
       "missing_detected": false,
       "conflict_detected": false,
-      "answer_preview": "### What are the pricing tiers\n- ricing tiers: Starter plan is $19 per month for..."
+      "answer_preview": "### What Are The Pricing Tiers\n- ricing tiers: Starter plan is $19 per month for..."
     },
     {
       "id": "Q03_MULTI_PAGE_SYNTHESIS",
@@ -185,7 +185,7 @@
       "aspects_count": 3,
       "missing_detected": true,
       "conflict_detected": false,
-      "answer_preview": "### What are the BM25 k1\n- BM25 scoring uses Lucene IDF with field boosts for pa..."
+      "answer_preview": "### What Are The Bm25 K1\n- BM25 scoring uses Lucene IDF with field boosts for pa..."
     },
     {
       "id": "Q13_OFFLINE_CAPABILITY",
@@ -215,7 +215,7 @@
       "aspects_count": 2,
       "missing_detected": false,
       "conflict_detected": false,
-      "answer_preview": "### How do you deploy SiteSage\n- SiteSage operates 100% deterministically using ..."
+      "answer_preview": "### How Do You Deploy Sitesage\n- SiteSage operates 100% deterministically using ..."
     },
     {
       "id": "Q15_NON_EXISTENT_FEATURE",

@@ -61,6 +61,32 @@ class MockAIProvider(AIProvider):
         return f"Polished Summary:\n\n{prompt}"
 
 
+def is_valid_api_key_format(api_key: Optional[str]) -> bool:
+    """Check if an API key is provided and is not an empty or default template placeholder."""
+    if not api_key:
+        return False
+    k = api_key.strip()
+    if not k:
+        return False
+    lower_k = k.lower()
+    placeholders = {
+        "your_gemini_api_key_here",
+        "your_api_key_here",
+        "your_gemini_api_key",
+        "your_api_key",
+        "placeholder",
+        "none",
+        "null",
+        "api_key",
+        "test_key",
+    }
+    if lower_k in placeholders or lower_k.startswith("your_") or "api_key_here" in lower_k:
+        return False
+    if len(k) < 15:
+        return False
+    return True
+
+
 class GeminiProvider(AIProvider):
     """Gemini API provider using HTTPX and environment-based credentials."""
 
@@ -84,8 +110,8 @@ class GeminiProvider(AIProvider):
         self.timeout = timeout
 
     async def polish(self, prompt: str) -> str:
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is not configured.")
+        if not is_valid_api_key_format(self.api_key):
+            raise ValueError("GEMINI_API_KEY is not configured in .env.")
 
         model_name = self.model.removeprefix("models/")
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
@@ -95,16 +121,35 @@ class GeminiProvider(AIProvider):
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(url, json=payload)
+            try:
+                resp = await client.post(url, json=payload)
+            except httpx.TimeoutException:
+                raise TimeoutError("Gemini API request timed out.")
+            except Exception as net_err:
+                raise RuntimeError(f"Connection to Gemini API failed: {net_err}")
+
             # Automatic fallback if configured model is experiencing spikes (503) or not found (404)
             if resp.status_code in (404, 503) and model_name != "gemini-3.5-flash-lite":
                 fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={self.api_key}"
-                resp = await client.post(fallback_url, json=payload)
+                try:
+                    resp = await client.post(fallback_url, json=payload)
+                except Exception:
+                    pass
 
+            if resp.status_code in (400, 401, 403):
+                raise ValueError("Configured GEMINI_API_KEY is invalid or unauthorized.")
+            if resp.status_code == 429:
+                raise RuntimeError("Gemini API rate limit or quota exceeded.")
+            if resp.status_code >= 500:
+                raise RuntimeError(f"Gemini API service temporarily unavailable (status {resp.status_code}).")
             if resp.status_code != 200:
-                raise RuntimeError(f"Gemini API returned status {resp.status_code}: {resp.text}")
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+                raise RuntimeError(f"Gemini API returned HTTP status {resp.status_code}.")
+
+            try:
+                data = resp.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception:
+                raise RuntimeError("Gemini API returned an unreadable response format.")
 
 
 # ── 2. Prompt Construction (Strict Quarantine) ──────────────────────
@@ -258,12 +303,12 @@ class AnswerPolisher:
                 os.environ.get("GEMINI_API_KEY")
                 or getattr(config, "GEMINI_API_KEY", "")
             ).strip()
-            if not api_key:
+            if not is_valid_api_key_format(api_key):
                 from dotenv import load_dotenv
                 load_dotenv(config.BASE_DIR / ".env", override=True)
                 api_key = (os.environ.get("GEMINI_API_KEY") or "").strip()
 
-            if api_key:
+            if is_valid_api_key_format(api_key):
                 self.provider = GeminiProvider(api_key=api_key)
             else:
                 self.provider = None
@@ -295,17 +340,14 @@ class AnswerPolisher:
             result.polish_reason = "Readability polish was not requested."
             return result
 
-        # If polishing was requested but no provider is available
-        if not provider:
-            api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-            if not api_key:
-                result.ai_polished = False
-                result.polish_status = "unavailable"
-                result.polish_reason = "AI polishing requires GEMINI_API_KEY to be configured in .env."
-            else:
-                result.ai_polished = False
-                result.polish_status = "unavailable"
-                result.polish_reason = "AI polisher provider could not be initialized."
+        # If polishing was requested but provider is missing or has a placeholder/dummy key
+        if not provider or (isinstance(provider, GeminiProvider) and not is_valid_api_key_format(provider.api_key)):
+            result.ai_polished = False
+            result.polish_status = "unavailable"
+            result.polish_reason = (
+                "Gemini API key is not configured. Add a valid GEMINI_API_KEY in .env "
+                "to enable AI polish, or turn off the toggle. Retained verified deterministic evidence."
+            )
             return result
 
         try:
@@ -342,6 +384,23 @@ class AnswerPolisher:
             logger.warning("AI provider failed or timed out: %s. Reverting to deterministic.", e)
             result.ai_polished = False
             result.polish_status = "unavailable"
-            clean_err = str(e).split("key=")[0].split("?")[0].strip()
-            result.polish_reason = f"AI service error ({clean_err}); retained verified deterministic evidence."
+            err_msg = str(e).lower()
+            if "invalid" in err_msg or "api key" in err_msg or "unauthorized" in err_msg or "400" in err_msg:
+                result.polish_reason = (
+                    "Gemini API key is invalid or not configured. Add a valid GEMINI_API_KEY in .env "
+                    "to enable AI polish, or turn off the toggle. Retained verified deterministic evidence."
+                )
+            elif "quota" in err_msg or "rate limit" in err_msg or "429" in err_msg:
+                result.polish_reason = (
+                    "Gemini API rate limit or quota exceeded. Please wait a moment or turn off Readability Polish. "
+                    "Retained verified deterministic evidence."
+                )
+            elif "timed out" in err_msg or "timeout" in err_msg:
+                result.polish_reason = (
+                    "Gemini API request timed out. Retained verified deterministic evidence."
+                )
+            else:
+                result.polish_reason = (
+                    "AI polishing service was temporarily unavailable. Retained verified deterministic evidence."
+                )
             return result

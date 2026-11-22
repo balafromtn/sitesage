@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 def capture_screenshots():
-    screenshot_dir = Path("screenshots")
+    screenshot_dir = Path(__file__).resolve().parent.parent / "screenshots"
     screenshot_dir.mkdir(exist_ok=True)
 
     options = webdriver.EdgeOptions()
@@ -20,8 +20,14 @@ def capture_screenshots():
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
 
+    cached_driver = Path(r"C:\Users\Balaji\.cache\selenium\msedgedriver\win64\158.0.4370.33\msedgedriver.exe")
     try:
-        driver = webdriver.Edge(options=options)
+        if cached_driver.exists():
+            from selenium.webdriver.edge.service import Service as EdgeService
+            service = EdgeService(str(cached_driver))
+            driver = webdriver.Edge(service=service, options=options)
+        else:
+            driver = webdriver.Edge(options=options)
     except Exception as e:
         print(f"Edge driver failed ({e}), trying Chrome...")
         chrome_options = webdriver.ChromeOptions()

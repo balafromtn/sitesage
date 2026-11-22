@@ -11,8 +11,14 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # ── Paths ────────────────────────────────────────────────────────────
-BASE_DIR = Path(__file__).resolve().parent
-# Load environment variables from .env file if present
+BACKEND_DIR = Path(__file__).resolve().parent
+BASE_DIR = BACKEND_DIR.parent
+
+# Ensure backend directory is in sys.path for direct module imports
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+# Load environment variables from .env file if present in project root
 load_dotenv(BASE_DIR / ".env")
 
 DB_PATH = Path(os.getenv("SITESAGE_DB_PATH", str(BASE_DIR / "sitesage.db")))
